@@ -6,6 +6,7 @@
 <title>ФК — САВДО АНАЛИТИКАСИ</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
 
@@ -206,6 +207,20 @@
   .bold-row td { font-weight:700; color:#fff; }
   .total-col { font-weight:700; color:var(--accent) !important; }
 
+  /* Expandable brand rows */
+  .brand-expandable-row:hover td { background: rgba(79,156,249,.08) !important; }
+  .brand-expandable-row td:first-child { color: var(--text); font-weight:500; }
+  .expand-arrow {
+    display:inline-block; font-size:9px; color:var(--accent);
+    transition: transform .2s; margin-right:2px;
+  }
+  .kuzov-sub-row td {
+    background: rgba(79,156,249,.03);
+    border-bottom: 1px solid rgba(30,48,80,.3) !important;
+  }
+  .kuzov-sub-row:hover td { background: rgba(79,156,249,.07) !important; }
+  .kuzov-row td:first-child { color: var(--text2); }
+
   /* ── Pritsep tab specifics ── */
   .prit-kpi { grid-template-columns: repeat(4, 1fr); }
 
@@ -219,17 +234,17 @@
   .full-card canvas { max-height:260px; }
 </style>
 </head>
-<body>
+<body class="light">
 
 <!-- HEADER -->
 <header>
   <div class="logo-box">ФК</div>
-  <h1>ФК — САВДО АНАЛИТИКАСИ</h1>
+  <h1>АНАЛИЗ РЫНКА РЕАЛИЗАЦИИ ГРУЗОВОЙ ТЕХНИКИ (14-40 тн) <span style="font-size:11px;font-weight:400;opacity:.7;">(форма для заполнения ФК)</span></h1>
   <div class="tab-group">
     <button class="tab-btn active" onclick="switchTab('gruz')">🚛 Грузовые автомобили</button>
     <button class="tab-btn" onclick="switchTab('prit')">🔗 Прицепная техника</button>
   </div>
-  <span class="theme-label" id="themeLabel">🌙</span>
+  <span class="theme-label" id="themeLabel">☀️</span>
   <button class="theme-btn" onclick="toggleTheme()" title="Тема алмаштириш"></button>
 </header>
 
@@ -249,11 +264,11 @@
   <!-- Row 1: Donut + Table -->
   <div class="grid-half">
     <div class="card">
-      <div class="card-title"><span>●</span> Брендлар улуши</div>
+      <div class="card-title"><span>●</span> Доля по производителям %</div>
       <canvas id="donutChart"></canvas>
     </div>
     <div class="card">
-      <div class="card-title"><span>▦</span> Брендлар жадвали — Йил бўйича тафсилот</div>
+      <div class="card-title"><span>▦</span> Реализация по годам</div>
       <div class="table-wrap">
         <table id="brandTable"></table>
       </div>
@@ -263,11 +278,11 @@
   <!-- Row 2: Bar + Line -->
   <div class="grid-2">
     <div class="card">
-      <div class="card-title"><span>▬</span> Кузов тури бўйича</div>
+      <div class="card-title"><span>▬</span> Реализация по моделям</div>
       <canvas id="kuzovBar"></canvas>
     </div>
     <div class="card">
-      <div class="card-title"><span>〜</span> Ойлик сотув тренди</div>
+      <div class="card-title"><span>〜</span> Динамика реализации по месяцам</div>
       <canvas id="trendLine"></canvas>
     </div>
   </div>
@@ -308,9 +323,112 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════
-//  EMBEDDED DATA
+//  DATA — loaded from Excel file via fetch + SheetJS
 // ═══════════════════════════════════════════════════════════
-const DATA = {"years_gruz":[2023,2024,2025,2026],"years_prit":[2024,2025,2026],"gruz":{"2023":{"КАМАЗ":[238,34,25,31,9,15,8,9,11,15,4,38],"UZTBM (SINOTRUK)":[1,13,22,24,44,7,22,50,85,15,14,8],"UZTBM (MAN)":[5,8,30,5,16,10,2,7,1,2,0,18],"VUM (FAW,импорт+Tiger 10-11 т)":[0,0,0,0,0,0,0,0,0,0,0,0],"SAM AUTO ISUZU (Серия F - 18 т)":[5,11,23,10,18,24,12,13,1,10,2,0],"Импорт":[495,527,943,776,798,774,591,273,671,1008,1023,1792],"Итого Рынок":[744,593,1043,846,885,830,635,352,769,1050,1043,1856]},"2024":{"КАМАЗ":[132,73,11,20,52,34,30,28,8,37,7,174],"UZTBM (SINOTRUK)":[38,2,15,35,0,1,86,42,62,44,41,75],"UZTBM (MAN)":[9,0,8,5,6,21,15,10,12,7,8,36],"VUM (FAW,импорт+Tiger 10-11 т)":[10,11,75,9,8,5,9,9,16,1,15,47],"SAM AUTO ISUZU (Серия F - 18 т)":[4,11,14,25,12,20,15,18,42,22,31,28],"Импорт":[215,296,230,26,40,36,75,79,80,96,148,1173],"Итого Рынок":[408,393,353,120,118,117,230,186,220,207,250,1533]},"2025":{"КАМАЗ":[7,9,37,36,83,44,77,69,15,23,14,110],"UZTBM (SINOTRUK)":[32,36,13,39,95,38,54,59,63,64,102,100],"UZTBM (MAN)":[3,10,10,13,1,4,5,2,7,8,5,7],"VUM (FAW,импорт+Tiger 10-11 т)":[34,23,40,27,43,28,25,49,41,45,47,54],"SAM AUTO ISUZU (Серия F - 18 т)":[49,14,39,10,5,27,6,28,23,29,7,15],"Импорт":[406,27,9,36,51,71,63,82,37,62,55,94],"Итого Рынок":[531,119,148,161,278,212,230,289,186,231,230,380]},"2026":{"КАМАЗ":[14,22,0,0,0,0,0,0,0,0,0,0],"UZTBM (SINOTRUK)":[0,0,0,0,0,0,0,0,0,0,0,0],"UZTBM (MAN)":[0,0,0,0,0,0,0,0,0,0,0,0],"VUM (FAW,импорт+Tiger 10-11 т)":[66,111,0,0,0,0,0,0,0,0,0,0],"SAM AUTO ISUZU (Серия F - 18 т)":[14,11,0,0,0,0,0,0,0,0,0,0],"Импорт":[0,0,0,0,0,0,0,0,0,0,0,0],"Итого Рынок":[88,128,0,0,0,0,0,0,0,0,0,0]}},"prit":{"2024":{"Релизация UAT на внутр. рынок":[2,7,8,66,0,3,1,8,4,3,13,11],"Самосвальные п/п (в т.ч. зерновоз)":[0,0,0,1,0,0,0,1,0,0,1,7],"Шторные п/п":[0,0,0,0,0,0,0,1,0,1,0,0],"Низкорамный трал":[2,0,0,0,0,0,0,0,0,0,0,4],"Бортовой полуприцеп контейнеровоз":[0,7,2,0,0,0,0,0,4,0,1,0],"Полуприцеп контейнеровоз":[0,0,0,5,0,1,0,0,0,0,0,0],"Самосвальный прицеп":[0,0,0,0,0,0,0,6,0,0,0,0],"Тракторный прицеп":[0,0,6,60,0,0,0,0,0,2,10,0],"Прицеп цистерна для питьевой воды":[0,0,0,0,0,0,0,0,0,0,0,0],"Полуприцеп коневоз":[0,0,0,0,0,1,0,0,0,0,0,0],"Полуприцеп зерновоз":[0,0,0,0,0,1,1,0,0,0,1,0]},"2025":{"Релизация UAT на внутр. рынок":[33,7,0,4,7,19,23,10,18,14,32,33],"Самосвальные п/п (в т.ч. зерновоз)":[26,4,0,4,2,8,21,9,3,3,3,26],"Шторные п/п":[0,0,0,0,0,2,0,0,3,6,7,0],"Низкорамный трал":[2,0,0,0,0,0,0,0,0,0,0,1],"Бортовой полуприцеп контейнеровоз":[5,3,0,0,0,3,2,1,6,1,0,0],"Полуприцеп контейнеровоз":[0,0,0,0,0,0,0,0,2,3,22,6],"Самосвальный прицеп":[0,0,0,0,0,6,0,0,2,1,0,0],"Тракторный прицеп":[0,0,0,0,0,0,0,0,2,0,0,0],"Прицеп цистерна для питьевой воды":[0,0,0,0,5,0,0,0,0,0,0,0],"Полуприцеп коневоз":[0,0,0,0,0,0,0,0,0,0,0,0],"Полуприцеп зерновоз":[0,1,0,1,0,7,3,0,3,0,3,2]},"2026":{"Релизация UAT на внутр. рынок":[19,21,0,0,0,0,0,0,0,0,0,0],"Самосвальные п/п (в т.ч. зерновоз)":[15,16,0,0,0,0,0,0,0,0,0,0],"Шторные п/п":[4,1,0,0,0,0,0,0,0,0,0,0],"Низкорамный трал":[0,0,0,0,0,0,0,0,0,0,0,0],"Бортовой полуприцеп контейнеровоз":[0,4,0,0,0,0,0,0,0,0,0,0],"Полуприцеп контейнеровоз":[0,0,0,0,0,0,0,0,0,0,0,0],"Самосвальный прицеп":[0,0,0,0,0,0,0,0,0,0,0,0],"Тракторный прицеп":[0,0,0,0,0,0,0,0,0,0,0,0],"Прицеп цистерна для питьевой воды":[0,0,0,0,0,0,0,0,0,0,0,0],"Полуприцеп коневоз":[0,0,0,0,0,0,0,0,0,0,0,0],"Полуприцеп зерновоз":[6,0,0,0,0,0,0,0,0,0,0,0]}},"kuzov_data":{"КАМАЗ":{"_kuzovs":["Автофургон (ЦМ)","борт","самосвал","спец. шасси","тягач"],"2023":{"Автофургон (ЦМ)":[5,10,10,1,0,1,0,0,0,1,0,0],"борт":[210,0,1,15,2,5,4,0,1,0,0,0],"самосвал":[1,19,7,9,5,3,2,1,1,0,1,0],"спец. шасси":[22,3,5,4,1,6,2,8,7,14,2,8],"тягач":[0,2,2,2,1,0,0,0,2,0,1,30]},"2024":{"Автофургон (ЦМ)":[0,1,1,0,0,0,0,0,0,0,0,0],"борт":[78,28,0,4,1,2,1,0,0,0,0,139],"самосвал":[1,0,0,2,1,1,1,23,4,3,1,5],"спец. шасси":[31,23,5,14,46,30,19,0,4,34,5,28],"тягач":[22,21,5,0,4,1,9,5,0,0,1,2]},"2025":{"Автофургон (ЦМ)":[0,0,0,0,0,0,0,0,0,0,0,0],"борт":[0,1,1,11,28,0,48,35,0,14,0,60],"самосвал":[0,0,0,0,5,5,6,11,7,0,5,0],"спец. шасси":[5,8,34,25,49,39,22,23,7,9,9,49],"тягач":[2,0,2,0,1,0,1,0,1,0,0,1]},"2026":{"Автофургон (ЦМ)":[0,0,0,0,0,0,0,0,0,0,0,0],"борт":[0,0,0,0,0,0,0,0,0,0,0,0],"самосвал":[1,2,0,0,0,0,0,0,0,0,0,0],"спец. шасси":[12,16,0,0,0,0,0,0,0,0,0,0],"тягач":[1,4,0,0,0,0,0,0,0,0,0,0]}},"UZTBM (SINOTRUK)":{"_kuzovs":["Автофургон (ЦМ/шторный)","борт","самосвал","спец. шасси","тягач"],"2023":{"Автофургон (ЦМ/шторный)":[0,3,0,0,9,1,0,0,0,0,0,0],"борт":[0,5,0,21,21,0,0,0,0,0,0,0],"самосвал":[1,5,22,3,11,6,22,49,85,15,13,2],"спец. шасси":[0,0,0,0,0,0,0,0,0,0,0,6],"тягач":[0,0,0,0,3,0,0,1,0,0,1,0]},"2024":{"Автофургон (ЦМ/шторный)":[0,0,0,0,0,0,0,0,0,0,0,0],"борт":[0,0,0,35,0,0,2,0,16,22,0,0],"самосвал":[1,2,15,0,0,1,84,42,46,22,32,67],"спец. шасси":[37,0,0,0,0,0,0,0,0,0,9,8],"тягач":[0,0,0,0,0,0,0,0,0,0,0,0]},"2025":{"Автофургон (ЦМ/шторный)":[0,0,0,0,0,0,0,0,0,0,0,0],"борт":[0,0,0,0,0,0,0,0,0,0,0,0],"самосвал":[18,31,13,38,95,38,32,44,28,34,42,37],"спец. шасси":[14,5,0,1,0,0,22,15,35,30,60,63],"тягач":[0,0,0,0,0,0,0,0,0,0,0,0]},"2026":{"Автофургон (ЦМ/шторный)":[0,0,0,0,0,0,0,0,0,0,0,0],"борт":[0,0,0,0,0,0,0,0,0,0,0,0],"самосвал":[0,0,0,0,0,0,0,0,0,0,0,0],"спец. шасси":[0,0,0,0,0,0,0,0,0,0,0,0],"тягач":[0,0,0,0,0,0,0,0,0,0,0,0]}},"UZTBM (MAN)":{"_kuzovs":["Автофургон (ЦМ/шторный)","самосвал","спец. шасси","тягач"],"2023":{"Автофургон (ЦМ/шторный)":[2,5,1,0,0,0,0,0,0,0,0,0],"самосвал":[0,3,6,5,0,0,0,0,1,0,0,14],"спец. шасси":[1,0,3,0,0,2,0,0,0,2,0,0],"тягач":[2,0,20,0,16,8,2,7,0,0,0,4]},"2024":{"Автофургон (ЦМ/шторный)":[1,0,0,0,0,0,2,0,0,0,0,0],"самосвал":[8,0,0,0,2,0,5,4,12,4,4,8],"спец. шасси":[0,0,7,4,1,3,0,0,0,3,3,4],"тягач":[0,0,1,1,3,18,8,6,0,0,1,24]},"2025":{"Автофургон (ЦМ/шторный)":[0,0,0,0,0,0,0,0,0,0,0,0],"самосвал":[0,2,4,1,0,3,1,0,2,2,1,1],"спец. шасси":[1,3,3,5,0,1,2,1,3,1,1,2],"тягач":[2,5,3,7,1,0,2,1,2,5,3,4]},"2026":{"Автофургон (ЦМ/шторный)":[0,0,0,0,0,0,0,0,0,0,0,0],"самосвал":[0,0,0,0,0,0,0,0,0,0,0,0],"спец. шасси":[0,0,0,0,0,0,0,0,0,0,0,0],"тягач":[0,0,0,0,0,0,0,0,0,0,0,0]}},"VUM (FAW,импорт+Tiger 10-11 т)":{"_kuzovs":["Автофургон (ЦМ/шторный)","борт","самосвал","спец. шасси","тягач"],"2023":{"Автофургон (ЦМ/шторный)":[0,0,0,0,0,0,0,0,0,0,0,0],"борт":[0,0,0,0,0,0,0,0,0,0,0,0],"самосвал":[0,0,0,0,0,0,0,0,0,0,0,0],"спец. шасси":[0,0,0,0,0,0,0,0,0,0,0,0],"тягач":[0,0,0,0,0,0,0,0,0,0,0,0]},"2024":{"Автофургон (ЦМ/шторный)":[2,0,0,1,0,0,0,0,0,0,5,3],"борт":[0,0,0,0,0,0,0,0,0,0,0,0],"самосвал":[0,2,2,3,0,5,6,6,11,0,3,5],"спец. шасси":[0,0,0,0,0,0,0,0,0,1,0,0],"тягач":[8,9,73,5,8,0,3,3,5,0,7,39]},"2025":{"Автофургон (ЦМ/шторный)":[6,1,8,4,3,10,6,12,2,15,24,20],"борт":[0,0,1,0,0,0,3,17,6,1,9,2],"самосвал":[8,3,4,6,0,5,8,7,13,6,3,5],"спец. шасси":[3,2,19,6,15,11,8,13,20,23,11,27],"тягач":[17,17,8,11,25,2,0,0,0,0,0,0]},"2026":{"Автофургон (ЦМ/шторный)":[23,42,0,0,0,0,0,0,0,0,0,0],"борт":[6,16,0,0,0,0,0,0,0,0,0,0],"самосвал":[20,20,0,0,0,0,0,0,0,0,0,0],"спец. шасси":[17,33,0,0,0,0,0,0,0,0,0,0],"тягач":[0,0,0,0,0,0,0,0,0,0,0,0]}},"SAM AUTO ISUZU (Серия F - 18 т)":{"_kuzovs":["Фургон цельнометаллический","борт","самосвал","спец. шасси"],"2023":{"Фургон цельнометаллический":[5,10,14,10,12,12,5,6,1,5,1,0],"борт":[0,0,0,0,0,0,0,0,0,0,0,0],"самосвал":[0,0,2,0,2,6,2,2,0,5,1,0],"спец. шасси":[0,1,7,0,4,6,5,5,0,0,0,0]},"2024":{"Фургон цельнометаллический":[1,1,8,8,5,5,13,4,10,10,21,11],"борт":[0,0,0,0,1,5,1,1,3,3,1,1],"самосвал":[1,3,1,1,1,0,0,2,3,4,0,7],"спец. шасси":[2,7,5,16,5,10,1,11,26,5,9,9]},"2025":{"Фургон цельнометаллический":[12,5,0,0,0,2,1,2,7,0,1,3],"борт":[16,0,10,0,0,1,0,0,1,0,0,0],"самосвал":[8,2,2,0,0,0,0,0,0,3,1,1],"спец. шасси":[13,7,27,10,5,24,5,26,15,26,5,11]},"2026":{"Фургон цельнометаллический":[1,3,0,0,0,0,0,0,0,0,0,0],"борт":[0,2,0,0,0,0,0,0,0,0,0,0],"самосвал":[2,1,0,0,0,0,0,0,0,0,0,0],"спец. шасси":[11,5,0,0,0,0,0,0,0,0,0,0]}},"Импорт":{"_kuzovs":["борт","самосвал","спец. шасси","тягач","фургон"],"2023":{"борт":[6,6,6,7,17,15,6,9,8,27,39,44],"самосвал":[33,110,161,182,235,282,194,53,302,527,475,452],"спец. шасси":[71,41,102,106,121,80,90,56,102,186,281,447],"тягач":[176,231,518,343,259,203,247,68,208,98,118,604],"фургон":[209,139,156,138,166,194,54,87,51,170,110,245]},"2024":{"борт":[0,6,0,0,0,2,2,4,2,13,11,6],"самосвал":[0,2,4,0,0,4,2,0,0,13,6,0],"спец. шасси":[6,19,9,5,10,16,12,34,13,17,47,76],"тягач":[180,237,194,21,30,10,46,34,49,30,56,858],"фургон":[29,32,23,0,0,4,13,7,16,23,28,233]},"2025":{"борт":[0,0,0,0,0,0,12,0,0,0,0,0],"самосвал":[4,10,1,9,28,55,7,22,2,4,12,5],"спец. шасси":[17,17,8,17,11,12,43,53,32,27,36,40],"тягач":[371,0,0,10,12,4,1,7,3,31,7,49],"фургон":[14,0,0,0,0,0,0,0,0,0,0,0]},"2026":{"борт":[0,0,0,0,0,0,0,0,0,0,0,0],"самосвал":[0,0,0,0,0,0,0,0,0,0,0,0],"спец. шасси":[0,0,0,0,0,0,0,0,0,0,0,0],"тягач":[0,0,0,0,0,0,0,0,0,0,0,0],"фургон":[0,0,0,0,0,0,0,0,0,0,0,0]}}},"brands":["КАМАЗ","UZTBM (SINOTRUK)","UZTBM (MAN)","VUM (FAW,импорт+Tiger 10-11 т)","SAM AUTO ISUZU (Серия F - 18 т)","Импорт","Итого Рынок"],"prit_types":["Релизация UAT на внутр. рынок","Самосвальные п/п (в т.ч. зерновоз)","Шторные п/п","Низкорамный трал","Бортовой полуприцеп контейнеровоз","Полуприцеп контейнеровоз","Самосвальный прицеп","Тракторный прицеп","Прицеп цистерна для питьевой воды","Полуприцеп коневоз","Полуприцеп зерновоз"]};
+let DATA = null;
+
+const BRANDS = [
+  'КАМАЗ','UZTBM (SINOTRUK)','UZTBM (MAN)',
+  'VUM (FAW,импорт+Tiger 10-11 т)',
+  'SAM AUTO ISUZU (Серия F - 18 т)',
+  'Импорт','Итого Рынок'
+];
+const PRIT_TYPES = [
+  'Релизация UAT на внутр. рынок',
+  'Самосвальные п/п (в т.ч. зерновоз)',
+  'Шторные п/п','Низкорамный трал',
+  'Бортовой полуприцеп контейнеровоз',
+  'Полуприцеп контейнеровоз','Самосвальный прицеп',
+  'Тракторный прицеп','Прицеп цистерна для питьевой воды',
+  'Полуприцеп коневоз','Полуприцеп зерновоз'
+];
+
+async function loadExcel(){
+  try {
+    const res = await fetch('./FK_Uzb_FINAL.xlsx');
+    if(!res.ok) throw new Error('Fayl topilmadi: ' + res.status);
+    const buf = await res.arrayBuffer();
+    const wb = XLSX.read(buf, {type:'array'});
+    const ws = wb.Sheets['All Data'];
+    if(!ws) throw new Error('"All Data" sheet topilmadi!');
+    const rows = XLSX.utils.sheet_to_json(ws, {defval:0});
+    DATA = buildData(rows);
+    buildPills();
+    renderGruz();
+  } catch(err){
+    document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Inter,sans-serif;flex-direction:column;gap:12px;">
+      <div style="font-size:48px;">⚠️</div>
+      <div style="font-size:16px;font-weight:600;color:#e8607a;">Excel fayl yuklanmadi</div>
+      <div style="font-size:12px;color:#8899aa;">${err.message}</div>
+      <div style="font-size:11px;color:#8899aa;">FK_Uzb_FINAL.xlsx faylni index.html bilan bir papkaga qo'ying</div>
+    </div>`;
+  }
+}
+
+function buildData(rows){
+  // Helper: sum array
+  const s = arr => arr.reduce((a,b)=>a+b,0);
+
+  // Get monthly array [1..12] for given filters
+  function monthly(sektor, kategoriya, kuzov, yil){
+    const result = Array(12).fill(0);
+    rows.forEach(r => {
+      const miqdor = Number(r['Miqdor']) || 0;
+      if(sektor && r['Sektor'] !== sektor) return;
+      if(kategoriya && r['Kategoriya'] !== kategoriya) return;
+      if(kuzov && r['Kuzov_Turi'] !== kuzov) return;
+      if(yil && Number(r['Yil']) !== yil) return;
+      const oy = Number(r['Oy_Raqam']);
+      if(oy >= 1 && oy <= 12) result[oy-1] += miqdor;
+    });
+    return result;
+  }
+
+  // Years
+  const gruzRows = rows.filter(r => r['Sektor'] === 'Грузовые автомобили');
+  const pritRows = rows.filter(r => r['Sektor'] === 'Прицепная техника');
+  const years_gruz = [...new Set(gruzRows.map(r=>Number(r['Yil'])))].sort();
+  const years_prit = [...new Set(pritRows.map(r=>Number(r['Yil'])))].sort();
+
+  // Gruz data
+  const gruz = {};
+  years_gruz.forEach(yr => {
+    gruz[String(yr)] = {};
+    BRANDS.forEach(br => {
+      gruz[String(yr)][br] = monthly('Грузовые автомобили', br, 'Жами', yr);
+    });
+  });
+
+  // Prit data
+  const prit = {};
+  years_prit.forEach(yr => {
+    prit[String(yr)] = {};
+    PRIT_TYPES.forEach(pt => {
+      prit[String(yr)][pt] = monthly('Прицепная техника', null, pt, yr);
+    });
+  });
+
+  // Kuzov data per brand
+  const kuzov_data = {};
+  BRANDS.slice(0,-1).forEach(br => {
+    const brRows = gruzRows.filter(r => r['Kategoriya']===br && r['Kuzov_Turi']!=='Жами');
+    const kuzovs = [...new Set(brRows.map(r=>r['Kuzov_Turi']))].sort();
+    kuzov_data[br] = { _kuzovs: kuzovs };
+    years_gruz.forEach(yr => {
+      kuzov_data[br][String(yr)] = {};
+      kuzovs.forEach(kz => {
+        kuzov_data[br][String(yr)][kz] = monthly('Грузовые автомобили', br, kz, yr);
+      });
+    });
+  });
+
+  return {
+    years_gruz, years_prit,
+    gruz, prit, kuzov_data,
+    brands: BRANDS,
+    prit_types: PRIT_TYPES
+  };
+}
 
 // ═══════════════════════════════════════════════════════════
 //  STATE
@@ -326,7 +444,7 @@ let selectedBrand = null; // null = all brands
 
 let charts = {};
 
-function fmt(n){ if(n>=1000) return (n/1000).toFixed(0)+'K'; return n; }
+function fmt(n){ return Number(n).toLocaleString('ru-RU'); }
 function sum(arr){ return arr.reduce((a,b)=>a+b,0); }
 function sumAllYears(brandName, years){
   return years.reduce((t,yr)=>{
@@ -423,60 +541,45 @@ function renderGruz(){
   const nonZero = monthly.filter(v=>v>0).length || 1;
   const avg = Math.round(total / nonZero);
 
-  // ── Growth % vs prev year ──
-  const allGruzYears = DATA.years_gruz;
-  const sortedSel = [...years].sort();
-  let gruzGrowth = null, gruzGrowthSub = '';
-  if(sortedSel.length >= 2){
-    const yp = sortedSel[sortedSel.length-2], yc = sortedSel[sortedSel.length-1];
-    const prev = DATA.gruz[String(yp)]?.[mainKey] ? sum(DATA.gruz[String(yp)][mainKey]) : 0;
-    const curr = DATA.gruz[String(yc)]?.[mainKey] ? sum(DATA.gruz[String(yc)][mainKey]) : 0;
-    if(prev>0){ gruzGrowth = ((curr-prev)/prev*100).toFixed(1); gruzGrowthSub=`${yp}→${yc}`; }
-  } else if(sortedSel.length===1){
-    const idx = allGruzYears.indexOf(sortedSel[0]);
-    if(idx>0){
-      const yp=allGruzYears[idx-1], yc=sortedSel[0];
-      const prev = DATA.gruz[String(yp)]?.[mainKey] ? sum(DATA.gruz[String(yp)][mainKey]) : 0;
-      const curr = DATA.gruz[String(yc)]?.[mainKey] ? sum(DATA.gruz[String(yc)][mainKey]) : 0;
-      if(prev>0){ gruzGrowth = ((curr-prev)/prev*100).toFixed(1); gruzGrowthSub=`${yp}→${yc}`; }
+  // ── 5 KPI cards: each year total + grand total ──
+  const kpiColors5 = ['#4f9cf9','#2ecb8e','#f0a843','#e8607a','#a78bfa'];
+  const allGruzYearsAll = DATA.years_gruz; // [2023,2024,2025,2026]
+
+  // Per-year totals using mainKey (selected brand or Итого Рынок)
+  const yearKpiCards = allGruzYearsAll.map((yr,i)=>{
+    const d = DATA.gruz[String(yr)];
+    const val = d && d[mainKey] ? sum(d[mainKey]) : 0;
+    // growth vs previous year
+    let growthStr = '';
+    if(i > 0){
+      const prevD = DATA.gruz[String(allGruzYearsAll[i-1])];
+      const prevVal = prevD && prevD[mainKey] ? sum(prevD[mainKey]) : 0;
+      if(prevVal > 0){
+        const g = ((val - prevVal)/prevVal*100).toFixed(0);
+        growthStr = (g > 0 ? ' ↑' : ' ↓') + Math.abs(g) + '%';
+      }
     }
-  }
+    return { label: String(yr)+' йил', display: val.toLocaleString('ru-RU'), sub: val+' дона'+(growthStr?` (${growthStr})`:''), color: kpiColors5[i] };
+  });
 
-  // ── Top brand ──
-  const brsForTop = DATA.brands.slice(0,-1);
-  const brandTotals = brsForTop.map(br=>sumAllYears(br,years));
-  const topBrandIdx = brandTotals.indexOf(Math.max(...brandTotals));
-  const topBrand = brsForTop[topBrandIdx];
-  const topBrandShort = topBrand.length>14 ? topBrand.slice(0,14)+'…' : topBrand;
-
-  // ── Import share % ──
-  const importTotal = sumAllYears('Импорт', years);
-  const importPct = total > 0 ? (importTotal/total*100).toFixed(1) : '0';
-
-  // ── Peak month ──
-  const peakVal = Math.max(...monthly);
-  const peakMon = MONTHS[monthly.indexOf(peakVal)];
-
-  // ── Last year total ──
-  const lastSelYr = sortedSel[sortedSel.length-1];
-  const lastYrData = DATA.gruz[String(lastSelYr)]?.[mainKey] || [];
-  const lastYrTotal = sum(lastYrData);
-
-  const gruzKpiCards = [
-    { label:'Жами Сотув',      display: total>=1000?(total/1000).toFixed(1)+'K':total,   sub: brand||'Итого Рынок',                       color:'#4f9cf9' },
-    { label:'Йиллик ўсиш',     display: gruzGrowth!==null?(gruzGrowth>0?'+':'')+gruzGrowth+'%':'—', sub: gruzGrowthSub||'Солиштириш йўқ', color: gruzGrowth!==null?(parseFloat(gruzGrowth)>=0?'#2ecb8e':'#e8607a'):'#8899aa' },
-    { label:'Энг кўп бренд',   display: topBrandShort,                                    sub: brandTotals[topBrandIdx]+' дона',           color:'#f0a843', small:true },
-    { label:'Импорт улуши',    display: importPct+'%',                                    sub: importTotal+' дона импорт',                 color:'#e8607a' },
-    { label:'Пик ой',          display: peakMon.toUpperCase(),                            sub: peakVal+' — рекорд ой',                     color:'#a78bfa', small:true },
-  ];
+  // 5th card: grand total across all years
+  const grandAllYears = allGruzYearsAll.reduce((t,yr)=>{
+    const d = DATA.gruz[String(yr)]; return t + (d&&d[mainKey]?sum(d[mainKey]):0);
+  },0);
+  const kpiCards5 = [...yearKpiCards.slice(0,4), {
+    label:'Жами (2023–2026)',
+    display: grandAllYears.toLocaleString('ru-RU'),
+    sub: grandAllYears+' дона жами',
+    color:'#a78bfa'
+  }];
 
   const gruzKpiRow = document.getElementById('gruzKpiRow');
   gruzKpiRow.innerHTML = '';
-  gruzKpiCards.forEach((k,i)=>{
+  kpiCards5.forEach((k)=>{
     const card = document.createElement('div');
     card.className = 'kpi-card';
     card.style.cssText = `border-top:2px solid ${k.color};`;
-    const fs = k.small ? '20px' : (String(k.display).length>6?'24px':'32px');
+    const fs = String(k.display).length>6 ? '24px' : '32px';
     card.innerHTML = `<div class="kpi-label">${k.label}</div>
       <div class="kpi-value" style="color:${k.color};font-size:${fs};line-height:1.2;">${k.display}</div>
       <div class="kpi-sub">${k.sub}</div>`;
@@ -499,7 +602,7 @@ function renderGruz(){
       ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.font='bold 22px Rajdhani, sans-serif';
       ctx.fillStyle= document.body.classList.contains('light') ? '#1a2535' : '#e2e8f0';
-      ctx.fillText(donutTotal>=1000?(donutTotal/1000).toFixed(1)+'K':donutTotal, cx, cy-8);
+      ctx.fillText(donutTotal.toLocaleString('ru-RU'), cx, cy-8);
       ctx.font='11px Inter, sans-serif';
       ctx.fillStyle= document.body.classList.contains('light') ? '#5a6a7e' : '#8899aa';
       ctx.fillText('Жами', cx, cy+12);
@@ -509,14 +612,23 @@ function renderGruz(){
   charts['donutChart'] = new Chart(document.getElementById('donutChart').getContext('2d'),{
     type:'doughnut',
     data:{
-      labels: brandsForDonut.map((br,i)=>`${br} (${donutTotal>0?(donutVals[i]/donutTotal*100).toFixed(1):'0'}%)`),
+      labels: brandsForDonut.map((br,i)=>`${br}`),
       datasets:[{data:donutVals, backgroundColor:BRAND_COLORS, borderWidth:1, borderColor:getBorderColor()}]
     },
     options:{
       responsive:true, maintainAspectRatio:true, cutout:'62%',
+      layout:{padding:30},
       plugins:{
-        legend:{position:'right', labels:{color:getTextColor(),font:{size:10},boxWidth:10,padding:8}},
-        tooltip:{callbacks:{label:ctx=>' '+ctx.label+': '+ctx.parsed}}
+        legend:{position:'right', labels:{color:getTextColor(), font:{size:13, weight:'500'}, boxWidth:12, padding:10}},
+        tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${ctx.parsed} (${donutTotal>0?(ctx.parsed/donutTotal*100).toFixed(1):'0'}%)`}},
+        datalabels:{
+          display: ctx => ctx.dataset.data[ctx.dataIndex] > 0,
+          color: ctx => BRAND_COLORS[ctx.dataIndex],
+          anchor:'end', align:'end',
+          offset: 6,
+          font:{ size:11, weight:'700' },
+          formatter:(val) => val > 0 ? val.toLocaleString() : ''
+        }
       }
     },
     plugins:[centerTextPlugin]
@@ -532,27 +644,31 @@ function renderGruz(){
   buildTrendLine(brand, years);
 }
 
+// Track which brands are expanded
+const expandedBrands = new Set();
+
 function buildBrandTable(brand, years){
   const tbl = document.getElementById('brandTable');
-  // Show kuzov breakdown for selected brand, or all brands if none selected
+  const colCount = years.length + 2; // label + years + total
+
   if(brand){
+    // Single brand selected — show kuzov breakdown directly (no expand needed)
     const kd = DATA.kuzov_data[brand];
     if(!kd){ tbl.innerHTML=''; return; }
     const kuzovs = kd._kuzovs;
-    let html = '<thead><tr><th>Kuzov_Turi</th>';
+    let html = '<thead><tr><th>Кузов тури</th>';
     years.forEach(yr=>html+=`<th>${yr}</th>`);
     html+=`<th class="total-col">Жами</th></tr></thead><tbody>`;
     kuzovs.forEach(kz=>{
       let rowTotal=0;
-      html+=`<tr><td>${kz}</td>`;
+      html+=`<tr class="kuzov-row"><td style="padding-left:12px;">↳ ${kz}</td>`;
       years.forEach(yr=>{
-        const v = kd[String(yr)] && kd[String(yr)][kz] ? sum(kd[String(yr)][kz]) : 0;
+        const v = kd[String(yr)]&&kd[String(yr)][kz] ? sum(kd[String(yr)][kz]) : 0;
         rowTotal+=v;
         html+=`<td>${v||''}</td>`;
       });
       html+=`<td class="total-col"><b>${rowTotal}</b></td></tr>`;
     });
-    // Total row
     html+=`<tr class="bold-row"><td>Жами</td>`;
     let grandTotal=0;
     years.forEach(yr=>{
@@ -563,37 +679,69 @@ function buildBrandTable(brand, years){
     });
     html+=`<td class="total-col">${grandTotal}</td></tr></tbody>`;
     tbl.innerHTML=html;
-  } else {
-    // All brands table
-    const brs = DATA.brands.slice(0,-1);
-    let html='<thead><tr><th>Бренд</th>';
-    years.forEach(yr=>html+=`<th>${yr}</th>`);
-    html+=`<th class="total-col">Жами</th></tr></thead><tbody>`;
-    brs.forEach(br=>{
-      let rowTotal=0;
-      html+=`<tr><td>${br}</td>`;
-      years.forEach(yr=>{
-        let v = DATA.gruz[String(yr)]&&DATA.gruz[String(yr)][br]?sum(DATA.gruz[String(yr)][br]):0;
-        // Manual correction: VUM 2023 = 312
-        if(br==='VUM (FAW,импорт+Tiger 10-11 т)' && yr===2023) v=312;
-        rowTotal+=v;
-        html+=`<td>${v||''}</td>`;
-      });
-      html+=`<td class="total-col"><b>${rowTotal}</b></td></tr>`;
-    });
-    // Итого
-    html+=`<tr class="bold-row"><td>Итого</td>`;
-    let grand=0;
-    years.forEach(yr=>{
-      let v = DATA.gruz[String(yr)]&&DATA.gruz[String(yr)]['Итого Рынок']?sum(DATA.gruz[String(yr)]['Итого Рынок']):0;
-      // Add VUM correction to total
-      if(yr===2023) v+=312;
-      grand+=v;
-      html+=`<td>${v}</td>`;
-    });
-    html+=`<td class="total-col">${grand}</td></tr></tbody>`;
-    tbl.innerHTML=html;
+    return;
   }
+
+  // All brands — each brand row is clickable to expand kuzov sub-rows
+  const brs = DATA.brands.slice(0,-1);
+  let html='<thead><tr><th>Бренд</th>';
+  years.forEach(yr=>html+=`<th>${yr}</th>`);
+  html+=`<th class="total-col">Жами</th></tr></thead><tbody>`;
+
+  brs.forEach(br=>{
+    const isExp = expandedBrands.has(br);
+    const kd = DATA.kuzov_data[br];
+    const hasKuzov = kd && kd._kuzovs && kd._kuzovs.length > 0;
+
+    let rowTotal=0;
+    const yearVals = years.map(yr=>{
+      let v = DATA.gruz[String(yr)]&&DATA.gruz[String(yr)][br]?sum(DATA.gruz[String(yr)][br]):0;
+      if(br==='VUM (FAW,импорт+Tiger 10-11 т)' && yr===2023) v=312;
+      rowTotal+=v;
+      return v;
+    });
+
+    const arrow = hasKuzov ? `<span class="expand-arrow">${isExp?'▼':'▶'}</span> ` : '  ';
+    const clickable = hasKuzov ? `class="brand-expandable-row" onclick="toggleBrandExpand('${br.replace(/'/g,"\\'")}', this)"` : '';
+
+    html+=`<tr ${clickable}><td style="cursor:${hasKuzov?'pointer':'default'}">${arrow}${br}</td>`;
+    yearVals.forEach(v=>{ html+=`<td>${v||''}</td>`; });
+    html+=`<td class="total-col"><b>${rowTotal}</b></td></tr>`;
+
+    // Kuzov sub-rows (if expanded)
+    if(isExp && hasKuzov){
+      kd._kuzovs.forEach(kz=>{
+        let kzTotal=0;
+        html+=`<tr class="kuzov-sub-row"><td style="padding-left:22px; color:var(--text2);">↳ ${kz}</td>`;
+        years.forEach(yr=>{
+          const v = kd[String(yr)]&&kd[String(yr)][kz] ? sum(kd[String(yr)][kz]) : 0;
+          kzTotal+=v;
+          html+=`<td style="color:var(--text2); font-size:11px;">${v||''}</td>`;
+        });
+        html+=`<td class="total-col" style="font-size:11px;">${kzTotal||''}</td></tr>`;
+      });
+    }
+  });
+
+  // Итого row
+  html+=`<tr class="bold-row"><td>Итого Рынок</td>`;
+  let grand=0;
+  years.forEach(yr=>{
+    let v = DATA.gruz[String(yr)]&&DATA.gruz[String(yr)]['Итого Рынок']?sum(DATA.gruz[String(yr)]['Итого Рынок']):0;
+    if(yr===2023) v+=312;
+    grand+=v;
+    html+=`<td>${v}</td>`;
+  });
+  html+=`<td class="total-col">${grand}</td></tr></tbody>`;
+  tbl.innerHTML=html;
+}
+
+function toggleBrandExpand(br, rowEl){
+  if(expandedBrands.has(br)) expandedBrands.delete(br);
+  else expandedBrands.add(br);
+  // Re-render table only (not full page)
+  const years = getActiveYears();
+  buildBrandTable(selectedBrand, years);
 }
 
 function buildKuzovBar(brand, years){
@@ -628,7 +776,7 @@ function buildKuzovBar(brand, years){
         datalabels:{
           display:true,
           anchor:'end', align:'end', clamp:true,
-          color:'#e2e8f0', font:{size:11, weight:'600'},
+          color: ctx => KUZOV_COLORS[Object.keys(kuzovTotals).sort((a,b)=>kuzovTotals[b]-kuzovTotals[a])[ctx.dataIndex]] || '#4f9cf9', font:{size:11, weight:'600'},
           formatter: v => v > 0 ? v.toLocaleString() : ''
         }
       },
@@ -818,7 +966,7 @@ function renderPrit(){
       ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.font='bold 20px Rajdhani, sans-serif';
       ctx.fillStyle= document.body.classList.contains('light') ? '#1a2535' : '#e2e8f0';
-      ctx.fillText(pritTotal>=1000?(pritTotal/1000).toFixed(1)+'K':pritTotal, cx, cy-8);
+      ctx.fillText(pritTotal.toLocaleString('ru-RU'), cx, cy-8);
       ctx.font='11px Inter, sans-serif';
       ctx.fillStyle= document.body.classList.contains('light') ? '#5a6a7e' : '#8899aa';
       ctx.fillText('Жами', cx, cy+12);
@@ -852,7 +1000,7 @@ function renderPrit(){
         datalabels:{
           display:true,
           anchor:'end', align:'end', clamp:true,
-          color:'#e2e8f0', font:{size:11, weight:'600'},
+          color: ctx => PRIT_COLORS[ctx.dataIndex] || getTextColor(), font:{size:11, weight:'600'},
           formatter: v => v > 0 ? v : ''
         }
       },
@@ -932,12 +1080,10 @@ function getBorderColor(){ return document.body.classList.contains('light') ? '#
 function toggleTheme(){
   const isLight = document.body.classList.toggle('light');
   document.getElementById('themeLabel').textContent = isLight ? '☀️' : '🌙';
-  // Update Chart.js defaults for new theme
   const textColor = isLight ? '#5a6a7e' : '#8899aa';
   const gridColor = isLight ? 'rgba(0,0,0,.06)' : 'rgba(255,255,255,.06)';
   Chart.defaults.color = textColor;
   Chart.defaults.borderColor = gridColor;
-  // Re-render active tab to reflect new colors
   if(curTab==='gruz') renderGruz(); else renderPrit();
 }
 
@@ -948,14 +1094,11 @@ function destroyChart(id){
 // ═══════════════════════════════════════════════════════════
 //  BOOT
 // ═══════════════════════════════════════════════════════════
-Chart.defaults.color = '#8899aa';
-Chart.defaults.borderColor = 'rgba(255,255,255,.06)';
-// Register datalabels plugin globally
+Chart.defaults.color = '#5a6a7e';
+Chart.defaults.borderColor = 'rgba(0,0,0,.06)';
 Chart.register(ChartDataLabels);
-// Default: disable datalabels everywhere, enable per-chart explicitly
 Chart.defaults.plugins.datalabels = { display: false };
-buildPills();
-renderGruz();
+loadExcel();
 </script>
 </body>
 </html>
